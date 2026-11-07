@@ -1,0 +1,2 @@
+# LF everywhere (a git with core.autocrlf=true would otherwise write CRLF copies on Windows).
+* text=auto eol=lf

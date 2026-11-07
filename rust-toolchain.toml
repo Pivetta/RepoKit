@@ -1,0 +1,8 @@
+# The Rust every Pivetta repo builds with. Each repo keeps its own rust-toolchain.toml (rustup reads
+# that one, with the repo's own components and targets); `deps.mts check` fails when its channel,
+# or the FROM rust:<version> of deploy/Dockerfile.cross where there is one, is not this channel.
+# Bump: change it here, push, `node scripts/deps.mts bump repokit` in each repo, fix what check says.
+[toolchain]
+channel = "1.94.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
