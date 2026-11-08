@@ -14,7 +14,9 @@ kept in step by hand.
 
 - Every submodule URL in `.gitmodules` is SSH: `git@github.com:<owner>/<repo>.git`.
 - The repo's `rust-toolchain.toml` channel (and `FROM rust:<version>` in `deploy/Dockerfile.cross`)
-  equals this repo's `rust-toolchain.toml` channel.
+  equals this repo's `rust-toolchain.toml` channel. A repo on its own Rust says so in its
+  `deps/deps.json`, `"repokit": { "repo": "Pivetta/RepoKit", "toolchain": "own" }`, and gets a
+  warning instead.
 
 ## A repo's shim
 

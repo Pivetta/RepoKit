@@ -26,7 +26,9 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export type Dep = { repo: string; branch?: string; consumers?: string[]; prepare?: string[]; note?: string };
+/** A deps.json entry. `toolchain: "own"` (on the repokit entry only): the repo keeps its own Rust
+ *  channel, and check only warns that it differs from RepoKit's. */
+export type Dep = { repo: string; branch?: string; consumers?: string[]; prepare?: string[]; note?: string; toolchain?: 'own' };
 export type Entry = { spec: string; file: string; types: string };
 
 /** The repository root: the nearest folder at or above `from` with deps/deps.json. */
@@ -312,7 +314,11 @@ export function check(root: string): { errors: string[]; warnings: string[] } {
       }
     }
   }
-  errors.push(...sshOnly(root), ...toolchain(root));
+  errors.push(...sshOnly(root));
+  const rust = toolchain(root);
+  // a repo with its own Rust (deps.json: "repokit": { ..., "toolchain": "own" }) is only told
+  if (deps.repokit?.toolchain === 'own') warnings.push(...rust.map((e) => `${e} (own toolchain: deps.json)`));
+  else errors.push(...rust);
   return { errors, warnings };
 }
 
