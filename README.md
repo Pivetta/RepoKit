@@ -9,6 +9,7 @@ kept in step by hand.
 | `deps.mts` | the shared-packages pipeline: `status`, `prepare`, `check`, `bump`; vite aliases and dedupe | `scripts/deps.mts`, a shim that re-exports it and runs `main()` |
 | `check.ps1` | the step runner (`x`, `withEnv`, `withDevServer`, `Invoke-Check`) | dot-sourced by `scripts/check.ps1`, which keeps only its steps |
 | `rust-toolchain.toml` | the Rust channel of every Pivetta repo | `deps.mts check` compares the repo's `rust-toolchain.toml` and `deploy/Dockerfile.cross` to it |
+| `prune.ps1` | removes worktrees whose branch is merged into main (clean ones only, links unlinked first) and merged local branches (`git branch -d`); lists stale unmerged ones | `powershell -File deps/repokit/prune.ps1 [-DryRun]` from the repo |
 
 ## Rules `deps.mts check` adds
 
