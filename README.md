@@ -19,6 +19,10 @@ kept in step by hand.
   equals this repo's `rust-toolchain.toml` channel. A repo on its own Rust says so in its
   `deps/deps.json`, `"repokit": { "repo": "Pivetta/RepoKit", "toolchain": "own" }`, and gets a
   warning instead.
+- A dep has no submodules of its own, unless its `deps/deps.json` entry says `"submodules": true`
+  (say, a tool whose npm workspace packages are submodules). Then `prepare` checks them out
+  recursively and runs `npm ci` in the dep, and `check` holds them to their pins and their
+  `.gitmodules` to SSH as well.
 
 ## A repo's shim
 

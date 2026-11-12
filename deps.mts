@@ -27,8 +27,10 @@ import { delimiter, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** A deps.json entry. `toolchain: "own"` (on the repokit entry only): the repo keeps its own Rust
- *  channel, and check only warns that it differs from RepoKit's. */
-export type Dep = { repo: string; branch?: string; consumers?: string[]; prepare?: string[]; note?: string; toolchain?: 'own' };
+ *  channel, and check only warns that it differs from RepoKit's. `submodules: true`: the dep keeps
+ *  submodules of its own (say, a tool whose npm workspace packages are submodules); prepare checks
+ *  them out recursively and installs the dep, and check holds them to their pins and to SSH. */
+export type Dep = { repo: string; branch?: string; consumers?: string[]; prepare?: string[]; note?: string; toolchain?: 'own'; submodules?: boolean };
 export type Entry = { spec: string; file: string; types: string };
 
 /** The repository root: the nearest folder at or above `from` with deps/deps.json. */
@@ -91,6 +93,8 @@ function installs(root: string, name: string, dep: Dep): boolean {
   const dir = join(root, 'deps', name);
   const pkgPath = join(dir, 'package.json');
   if (!existsSync(pkgPath)) return false;
+  // a tool with its own submodules runs from its checkout, devDependencies and all
+  if (dep.submodules && existsSync(join(dir, 'package-lock.json'))) return true;
   const deps = Object.keys((readJson(pkgPath) as { dependencies?: Record<string, string> }).dependencies ?? {});
   return deps.length > 0 && existsSync(join(dir, 'package-lock.json'));
 }
@@ -215,6 +219,9 @@ export function prepare(root: string, only: string[] = []): void {
     if (!readdirSync(join(root, 'deps')).includes(name) || readdirSync(dir).length === 0) {
       throw new Error(`deps/${name} is not checked out: git submodule update --init deps/${name}`);
     }
+    if (dep.submodules && git(dir, ['submodule', 'update', '--init', '--recursive']) === null) {
+      throw new Error(`deps/${name}: its own submodules didn't check out (git -C deps/${name} submodule update --init --recursive)`);
+    }
     const pkgPath = join(dir, 'package.json');
     if (!existsSync(pkgPath)) continue; // a Rust-only dep
     const scripts = dep.prepare ?? [];
@@ -285,7 +292,10 @@ export function check(root: string): { errors: string[]; warnings: string[] } {
       const on = (git(dir, ['branch', '-r', '--contains', pin], true) ?? '').split('\n').map((s) => s.trim());
       if (!on.includes(`origin/${branch}`)) errors.push(`deps/${name}: pin ${pin.slice(0, 7)} is not on origin/${branch} (push it there; or fetch in deps/${name})`);
     }
-    if (git(dir, ['ls-files', '.gitmodules'], true)) errors.push(`deps/${name}: has a .gitmodules (no nested submodules)`);
+    if (git(dir, ['ls-files', '.gitmodules'], true)) {
+      if (dep.submodules) errors.push(...nested(dir, name));
+      else errors.push(`deps/${name}: has a .gitmodules (no nested submodules, unless deps.json says "submodules": true)`);
+    }
     for (const consumer of dep.consumers ?? []) {
       if (!existsSync(join(root, consumer, 'tsconfig.json'))) {
         errors.push(`deps/${name}: consumer ${consumer} has no tsconfig.json`);
@@ -320,6 +330,20 @@ export function check(root: string): { errors: string[]; warnings: string[] } {
   if (deps.repokit?.toolchain === 'own') warnings.push(...rust.map((e) => `${e} (own toolchain: deps.json)`));
   else errors.push(...rust);
   return { errors, warnings };
+}
+
+/** A dep's own submodules ("submodules": true): checked out, at their pins, over SSH. */
+function nested(dir: string, name: string): string[] {
+  const fix = `node scripts/deps.mts prepare ${name}`;
+  const lines = (git(dir, ['submodule', 'status', '--recursive'], true) ?? '').split('\n').filter(Boolean);
+  const errors = lines.flatMap((line) => {
+    const path = line.slice(1).trim().split(' ')[1];
+    if (line[0] === '-') return [`deps/${name}/${path}: not checked out (${fix})`];
+    if (line[0] === '+') return [`deps/${name}/${path}: not at its pin (${fix})`];
+    if (line[0] === 'U') return [`deps/${name}/${path}: has merge conflicts`];
+    return [];
+  });
+  return [...errors, ...sshOnly(dir).map((e) => `deps/${name}/${e}`)];
 }
 
 /** Every submodule (deps/, assets/, content/...) comes from GitHub over SSH. */
